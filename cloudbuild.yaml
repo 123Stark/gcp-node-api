@@ -1,0 +1,29 @@
+steps:
+  # 1. Сборка Docker-образа
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'europe-west1-docker.pkg.dev/clrun-node/api-repo/gcp-node-api:$COMMIT_SHA', '.']
+
+  # 2. Публикация образа в Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-west1-docker.pkg.dev/clrun-node/api-repo/gcp-node-api:$COMMIT_SHA']
+
+  # 3. Деплой нового образа на Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+    - 'run'
+    - 'deploy'
+    - 'gcp-node-api'
+    - '--image'
+    - 'europe-west1-docker.pkg.dev/clrun-node/api-repo/gcp-node-api:$COMMIT_SHA'
+    - '--region'
+    - 'europe-west1'
+    - '--platform'
+    - 'managed'
+    - '--allow-unauthenticated'
+    - '--add-cloudsql-instances=clrun-node:europe-west1:my-api-db'
+    - '--set-env-vars=DB_SOCKET_PATH=/cloudsql/clrun-node:europe-west1:my-api-db,DB_USER=postgres,DB_NAME=tasksdb'
+    - '--set-secrets=DB_PASSWORD=db-password:latest'
+
+# Опционально: указать, какие образы сохранять
+images:
+  - 'europe-west1-docker.pkg.dev/clrun-node/api-repo/gcp-node-api:$COMMIT_SHA'
