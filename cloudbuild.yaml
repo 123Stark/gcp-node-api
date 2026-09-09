@@ -1,10 +1,26 @@
 steps:
+  # ШАГ 1: Запуск миграций через Cloud Run Job
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+    - 'run'
+    - 'jobs'
+    - 'execute'
+    - 'run-migrations'
+    - '--region=europe-west1'
+    - '--wait'
+    id: 'run-migrations'
+
+  # ШАГ 2: Сборка основного образа
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'europe-west1-docker.pkg.dev/clrun-node/api-repo/gcp-node-api:$COMMIT_SHA', '.']
+    id: 'build-app'
 
+  # ШАГ 3: Публикация образа
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'europe-west1-docker.pkg.dev/clrun-node/api-repo/gcp-node-api:$COMMIT_SHA']
+    id: 'push-app'
 
+  # ШАГ 4: Деплой на Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
     - 'run'
@@ -20,11 +36,11 @@ steps:
     - '--add-cloudsql-instances=clrun-node:europe-west1:my-api-db'
     - '--set-env-vars=DB_SOCKET_PATH=/cloudsql/clrun-node:europe-west1:my-api-db,DB_USER=postgres,DB_NAME=tasksdb'
     - '--set-secrets=DB_PASSWORD=db-password:latest'
+    id: 'deploy'
 
 images:
   - 'europe-west1-docker.pkg.dev/clrun-node/api-repo/gcp-node-api:$COMMIT_SHA'
 
-# Использовать Cloud Logging для логов
 options:
   logging: CLOUD_LOGGING_ONLY
 
