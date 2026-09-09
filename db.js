@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Pool } = require('pg');
 
 // В Cloud Run мы подключаемся к Cloud SQL через Unix-сокет,
