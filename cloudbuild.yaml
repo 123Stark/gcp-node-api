@@ -24,5 +24,8 @@ steps:
 images:
   - 'europe-west1-docker.pkg.dev/clrun-node/api-repo/gcp-node-api:$COMMIT_SHA'
 
-# Важно: укажите сервисный аккаунт
+# Использовать Cloud Logging для логов
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 serviceAccount: 'projects/clrun-node/serviceAccounts/cloud-run-deployer@clrun-node.iam.gserviceaccount.com'
