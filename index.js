@@ -1,10 +1,23 @@
 const express = require('express');
 const pool = require('./db');
+const { logInfo, logError } = require('./logger');
 
 const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 8080;
+
+// Логируем каждый входящий запрос — удобно потом искать в Cloud Logging
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    logInfo('request completed', {
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+    });
+  });
+  next();
+});
 
 // Health check — полезно для Cloud Run и для быстрой проверки, что БД доступна
 app.get('/health', async (req, res) => {
@@ -12,7 +25,7 @@ app.get('/health', async (req, res) => {
     await pool.query('SELECT 1');
     res.json({ status: 'ok' });
   } catch (err) {
-    console.error('Health check failed:', err);
+    logError('health check failed', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
@@ -25,7 +38,7 @@ app.get('/tasks', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error(err);
+    logError('failed to list tasks', err);
     res.status(500).json({ error: 'Internal error' });
   }
 });
@@ -39,7 +52,7 @@ app.get('/tasks/:id', async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) {
-    console.error(err);
+    logError('failed to get task', err, { taskId: req.params.id });
     res.status(500).json({ error: 'Internal error' });
   }
 });
@@ -53,19 +66,9 @@ app.post('/tasks', async (req, res) => {
       'INSERT INTO tasks (title, done) VALUES ($1, false) RETURNING *',
       [title]
     );
-
-    await axios.post( process.env.NOTIFICATION_SERVICE_URL + '/notifications/task-created',
-   {
-    taskId: result.rows[0].id,
-    taskTitle: result.rows[0].title,
-    assignedTo: result.rows[0].assigned_to,
-    taskUrl: `${process.env.TASK_SERVICE_URL}/tasks/${result.rows[0].id}`
-   }
-);
-
     res.status(201).json(rows[0]);
   } catch (err) {
-    console.error(err);
+    logError('failed to create task', err);
     res.status(500).json({ error: 'Internal error' });
   }
 });
@@ -85,7 +88,7 @@ app.put('/tasks/:id', async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) {
-    console.error(err);
+    logError('failed to update task', err, { taskId: req.params.id });
     res.status(500).json({ error: 'Internal error' });
   }
 });
@@ -99,11 +102,11 @@ app.delete('/tasks/:id', async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Not found' });
     res.status(204).send();
   } catch (err) {
-    console.error(err);
+    logError('failed to delete task', err, { taskId: req.params.id });
     res.status(500).json({ error: 'Internal error' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`API запущен на порту ${PORT}`);
+  logInfo('server started', { port: PORT });
 });

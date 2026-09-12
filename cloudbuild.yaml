@@ -44,4 +44,4 @@ images:
 options:
   logging: CLOUD_LOGGING_ONLY
 
-serviceAccount: 'projects/clrun-node/serviceAccounts/cloud-run-deployer@clrun-node.iam.gserviceaccount.com'
+serviceAccount: 'projects/clrun-node/serviceAccounts/cloud-run-deployer@clrun-node.iam.gserviceaccount.com' 
