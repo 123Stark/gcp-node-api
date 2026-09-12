@@ -107,6 +107,14 @@ app.delete('/tasks/:id', async (req, res) => {
   }
 });
 
+app.get('/debug-error', (req, res) => {
+  const fakeErr = new Error('Test error for alert verification');
+  logError('debug error triggered manually', fakeErr, { triggeredBy: 'manual-test' });
+  res.status(500).json({ error: 'This is a test error, check your logs/alerts' });
+});
+ 
+
+
 app.listen(PORT, () => {
   logInfo('server started', { port: PORT });
 });
