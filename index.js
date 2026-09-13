@@ -129,6 +129,39 @@ app.get('/debug-error', (req, res) => {
   logError('debug error triggered manually', fakeErr, { triggeredBy: 'manual-test' });
   res.status(500).json({ error: 'This is a test error, check your logs/alerts' });
 });
+
+// Pub/Sub push endpoint — сюда Pub/Sub сам присылает POST при новом сообщении.
+// Формат тела запроса фиксированный, его задаёт Pub/Sub, не мы:
+// { message: { data: <base64>, messageId, publishTime }, subscription }
+app.post('/pubsub/task-events', (req, res) => {
+  try {
+    const message = req.body.message;
+    if (!message || !message.data) {
+      logError('pubsub push: malformed request', null, { body: req.body });
+      return res.status(400).send('Bad Request: missing message.data');
+    }
+ 
+    const decoded = Buffer.from(message.data, 'base64').toString('utf8');
+    const event = JSON.parse(decoded);
+ 
+    logInfo('pubsub push received', {
+      eventType: event.eventType,
+      taskId: event.task && event.task.id,
+      messageId: message.messageId,
+    });
+ 
+    // Тут в реальном проекте была бы обработка события —
+    // отправка email, запись в аналитику и т.п.
+ 
+    res.status(204).send();
+  } catch (err) {
+    logError('pubsub push: failed to process', err);
+    // Возвращаем 500 — Pub/Sub повторит доставку позже
+    res.status(500).send('Internal error');
+  }
+});
+ 
+
  
 
 
