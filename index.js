@@ -1,6 +1,22 @@
 const express = require('express');
 const pool = require('./db');
 const { logInfo, logError } = require('./logger');
+const { PubSub } = require('@google-cloud/pubsub');
+
+
+const pubsub = new PubSub();
+const TASK_EVENTS_TOPIC = 'task-events';
+
+async function publishTaskEvent(eventType, task) {
+  try {
+    const data = Buffer.from(JSON.stringify({ eventType, task, ts: new Date().toISOString() }));
+    await pubsub.topic(TASK_EVENTS_TOPIC).publishMessage({ data });
+    logInfo('task event published', { eventType, taskId: task.id });
+  } catch (err) {
+    logError('failed to publish task event', err, { eventType, taskId: task.id });
+  }
+}
+
 
 const app = express();
 app.use(express.json());
@@ -67,6 +83,7 @@ app.post('/tasks', async (req, res) => {
       [title]
     );
     res.status(201).json(rows[0]);
+    publishTaskEvent('task.created', rows[0]);
   } catch (err) {
     logError('failed to create task', err);
     res.status(500).json({ error: 'Internal error' });
