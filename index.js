@@ -7,6 +7,28 @@ const { PubSub } = require('@google-cloud/pubsub');
 const pubsub = new PubSub();
 const TASK_EVENTS_TOPIC = 'task-events';
 
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL; // куда слать уведомления
+ 
+async function sendTaskCreatedEmail(task) {
+  if (!resend || !NOTIFY_EMAIL) {
+    logInfo('email skipped: resend not configured', { taskId: task.id });
+    return;
+  }
+  try {
+    await resend.emails.send({
+      from: 'onboarding@resend.dev', // тестовый адрес Resend, работает без своего домена
+      to: NOTIFY_EMAIL,
+      subject: `Новая задача: ${task.title}`,
+      text: `Задача "${task.title}" создана (id: ${task.id}).`,
+    });
+    logInfo('email sent', { taskId: task.id });
+  } catch (err) {
+    logError('failed to send email', err, { taskId: task.id });
+  }
+}
+
+
 async function publishTaskEvent(eventType, task) {
   try {
     const data = Buffer.from(JSON.stringify({ eventType, task, ts: new Date().toISOString() }));
@@ -133,7 +155,7 @@ app.get('/debug-error', (req, res) => {
 // Pub/Sub push endpoint — сюда Pub/Sub сам присылает POST при новом сообщении.
 // Формат тела запроса фиксированный, его задаёт Pub/Sub, не мы:
 // { message: { data: <base64>, messageId, publishTime }, subscription }
-app.post('/pubsub/task-events', (req, res) => {
+app.post('/pubsub/task-events', async (req, res) => {
   try {
     const message = req.body.message;
     if (!message || !message.data) {
@@ -152,6 +174,11 @@ app.post('/pubsub/task-events', (req, res) => {
  
     // Тут в реальном проекте была бы обработка события —
     // отправка email, запись в аналитику и т.п.
+
+    if (event.eventType === 'task.created' && event.task) {
+      await sendTaskCreatedEmail(event.task);
+    }
+
  
     res.status(204).send();
   } catch (err) {
