@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('./db');
 const { logInfo, logError } = require('./logger');
 const { PubSub } = require('@google-cloud/pubsub');
+const { Resend } = require('resend');
 
 
 const pubsub = new PubSub();
