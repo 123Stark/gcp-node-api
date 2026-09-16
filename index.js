@@ -188,6 +188,19 @@ app.post('/pubsub/task-events', async (req, res) => {
     res.status(500).send('Internal error');
   }
 });
+
+app.get('/debug-vpc', async (req, res) => {
+  try {
+    const response = await fetch('http://10.132.0.2:8000/index.html');
+    const text = await response.text();
+    logInfo('vpc connector test succeeded', { response: text.trim() });
+    res.json({ success: true, response: text.trim() });
+  } catch (err) {
+    logError('vpc connector test failed', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
  
 
  
