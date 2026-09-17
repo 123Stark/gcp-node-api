@@ -1,8 +1,19 @@
 const express = require('express');
 const pool = require('./db');
+const multer = require('multer');
+const { Storage } = require('@google-cloud/storage');
 const { logInfo, logError } = require('./logger');
 const { PubSub } = require('@google-cloud/pubsub');
 const { Resend } = require('resend');
+
+
+const storage = new Storage();
+const ATTACHMENTS_BUCKET = 'clrun-node-task-attachments';
+const upload = multer({
+  storage: multer.memoryStorage(), // держим файл в памяти, не на диске — контейнер эфемерный
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 МБ, разумный лимит для теста
+});
+
 
 
 const pubsub = new PubSub();
@@ -201,9 +212,55 @@ app.get('/debug-vpc', async (req, res) => {
   }
 });
 
+app.post('/tasks/:id/attachment', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'file is required (form field name: "file")' });
+  }
+  const taskId = req.params.id;
+  try {
+    // Проверяем, что задача реально существует, прежде чем грузить файл
+    const { rows } = await pool.query('SELECT id FROM tasks WHERE id = $1', [taskId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Task not found' });
  
+    const objectPath = `tasks/${taskId}/${Date.now()}-${req.file.originalname}`;
+    const bucket = storage.bucket(ATTACHMENTS_BUCKET);
+    const blob = bucket.file(objectPath);
+ 
+    await blob.save(req.file.buffer, {
+      contentType: req.file.mimetype,
+    });
+ 
+    await pool.query('UPDATE tasks SET attachment_path = $1 WHERE id = $2', [objectPath, taskId]);
+ 
+    logInfo('attachment uploaded', { taskId, objectPath, size: req.file.size });
+    res.status(201).json({ taskId, objectPath });
+  } catch (err) {
+    logError('failed to upload attachment', err, { taskId });
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
 
+app.get('/tasks/:id/attachment', async (req, res) => {
+  const taskId = req.params.id;
+  try {
+    const { rows } = await pool.query('SELECT attachment_path FROM tasks WHERE id = $1', [taskId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Task not found' });
+    if (!rows[0].attachment_path) return res.status(404).json({ error: 'No attachment for this task' });
  
+    const bucket = storage.bucket(ATTACHMENTS_BUCKET);
+    const file = bucket.file(rows[0].attachment_path);
+ 
+    const [signedUrl] = await file.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 15 * 60 * 1000, // ссылка живёт 15 минут
+    });
+ 
+    res.json({ url: signedUrl, expiresInMinutes: 15 });
+  } catch (err) {
+    logError('failed to generate signed url', err, { taskId });
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
 
 
 app.listen(PORT, () => {
