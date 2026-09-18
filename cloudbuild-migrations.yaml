@@ -1,0 +1,7 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'Dockerfile.migrations', '-t', 'europe-west1-docker.pkg.dev/clrun-node/api-repo/migrations', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['run', '--rm', 'europe-west1-docker.pkg.dev/clrun-node/api-repo/migrations', 'sh', '-c', 'ls -la /app | grep env; echo ---; cat /app/.env 2>/dev/null || echo "no .env file"']
+images:
+  - 'europe-west1-docker.pkg.dev/clrun-node/api-repo/migrations'

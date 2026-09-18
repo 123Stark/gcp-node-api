@@ -68,4 +68,5 @@ async function runMigrations() {
   }
 }
 
+
 runMigrations();

@@ -1,0 +1,6 @@
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'Dockerfile.nginx', '-t', 'europe-west1-docker.pkg.dev/clrun-node/api-repo/nginx-proxy', '.']
+images:
+  - 'europe-west1-docker.pkg.dev/clrun-node/api-repo/nginx-proxy'
